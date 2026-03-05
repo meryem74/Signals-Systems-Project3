@@ -1,0 +1,142 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import wavfile
+from scipy.signal import medfilt
+import os
+
+def calculate_energy(frame):
+    """Kısa Süreli Enerji Hesaplaması (STE) - Ödev Formül: sum(x^2)"""
+    return np.sum(frame**2)
+
+def calculate_zcr(frame):
+    """Sıfır Geçiş Oranı Hesaplaması (ZCR)"""
+    return np.sum(np.abs(np.diff(np.sign(frame)))) / (2 * len(frame))
+
+def process_audio(dosya_yolu):
+    # 1. DOSYAYI OKU VE NORMALİZE ET
+    if not os.path.exists(dosya_yolu):
+        print(f"Hata: {dosya_yolu} bulunamadı!")
+        return
+
+    fs, signal = wavfile.read(dosya_yolu)
+    
+    # Stereo ise monoya çevir
+    if len(signal.shape) > 1:
+        signal = signal.mean(axis=1)
+        
+    # Sinyali [-1, 1] aralığına normalize et (Teknik Notlar gereği)
+    signal = signal / np.max(np.abs(signal))
+    
+    # 2. PENCERELEME PARAMETRELERİ (20ms pencere, 10ms örtüşme)
+    frame_duration = 0.020  
+    overlap_duration = 0.010 
+    
+    frame_length = int(frame_duration * fs)
+    step_length = int(overlap_duration * fs)
+    num_frames = 1 + int((len(signal) - frame_length) / step_length)
+    
+    energies = np.zeros(num_frames)
+    zcrs = np.zeros(num_frames)
+    window = np.hamming(frame_length) # Spektral sızıntıyı önlemek için Hamming
+    
+    # Özellik Çıkarımı
+    for i in range(num_frames):
+        start = i * step_length
+        end = start + frame_length
+        frame = signal[start:end] * window
+        energies[i] = calculate_energy(frame)
+        zcrs[i] = calculate_zcr(frame)
+        
+    # 3. GÜRÜLTÜ TAHMİNİ VE VAD (Voice Activity Detection)
+    # İlk 150ms'den dinamik eşik hesaplama (Ödev 1. Adım)
+    noise_duration = 0.150 
+    hop_duration = frame_duration - overlap_duration
+    noise_frames_count = int(noise_duration / hop_duration)
+    
+    noise_floor = np.mean(energies[:noise_frames_count])
+    # Çarpan 50: Sessiz bölgelerdeki düşük gürültüyü tamamen elemek için
+    energy_threshold = noise_floor * 20 
+    
+    # VAD Kararı ve Temizleme
+    vad = (energies > energy_threshold).astype(int)
+    vad = medfilt(vad, kernel_size=5) # Anlık hataları (tık sesleri) temizler
+    
+    # Hangover Time (Akıcılık Kontrolü)
+    hangover_frames = 5
+    for i in range(hangover_frames, len(vad)):
+        if vad[i] == 0 and np.sum(vad[i-hangover_frames:i]) >= 1:
+            vad[i] = 1
+
+    # 4. SESLİ / SESSİZ (Voiced / Unvoiced) ANALİZİ
+    zcr_threshold = 0.15 
+    v_uv_mask = np.zeros(num_frames) 
+    
+    for i in range(num_frames):
+        if vad[i] == 1: # Konuşma varsa analiz yap
+            if zcrs[i] < zcr_threshold:
+                v_uv_mask[i] = 2 # Voiced (Yeşil)
+            else:
+                v_uv_mask[i] = 1 # Unvoiced (Turuncu)
+        else:
+            v_uv_mask[i] = 0 # Sessiz bölge (Boyama yapma)
+
+    # 5. SIKIŞTIRMA VE KAYDETME
+    sample_mask = np.zeros(len(signal))
+    for i in range(num_frames):
+        if vad[i] == 1:
+            start = i * step_length
+            end = start + frame_length
+            sample_mask[start:end] = 1
+            
+    clean_signal = signal[sample_mask == 1]
+    output_filename = "temizlenmis_ses.wav"
+    # 16-bit PCM formatında kaydetme
+    wavfile.write(output_filename, fs, (clean_signal * 32767).astype(np.int16))
+    
+    # Rapor verileri
+    original_duration = len(signal) / fs
+    clean_duration = len(clean_signal) / fs
+    print("-" * 30)
+    print(f"Orijinal Süre: {original_duration:.2f} s")
+    print(f"Sıkıştırılmış Süre: {clean_duration:.2f} s")
+    print(f"Sıkıştırma Oranı: %{((original_duration-clean_duration)/original_duration)*100:.2f}")
+    print("-" * 30)
+
+    # 6. GÖRSELLEŞTİRME
+    time_axis = np.linspace(0, len(signal) / fs, num=len(signal))
+    frame_time_axis = np.linspace(0, len(signal) / fs, num=num_frames)
+    
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    
+    # Fig 1: Zaman Domeni
+    axes[0].plot(time_axis, signal, color='gray', alpha=0.7)
+    axes[0].set_title('Orijinal Ses Sinyali (Zaman Domeni)')
+    axes[0].set_ylabel('Genlik')
+    
+    # Fig 2: STE ve ZCR
+    ax2 = axes[1]
+    ax2.plot(frame_time_axis, energies, color='blue', label='Enerji (STE)')
+    ax2.set_ylabel('Enerji', color='blue')
+    ax3 = ax2.twinx()
+    ax3.plot(frame_time_axis, zcrs, color='red', alpha=0.5, label='ZCR')
+    ax3.set_ylabel('ZCR', color='red')
+    axes[1].set_title('Enerji (Mavi) ve ZCR (Kırmızı) Grafikleri')
+    
+    # Fig 3: VAD ve V/UV Maskesi
+    axes[2].plot(time_axis, signal, color='black', alpha=0.3)
+    for i in range(num_frames):
+        start_t = i * step_length / fs
+        end_t = (i * step_length + frame_length) / fs
+        if v_uv_mask[i] == 2:
+            axes[2].axvspan(start_t, end_t, color='green', alpha=0.4)
+        elif v_uv_mask[i] == 1:
+            axes[2].axvspan(start_t, end_t, color='orange', alpha=0.4)
+            
+    axes[2].set_title('VAD ve Voiced(Yeşil)/Unvoiced(Turuncu) Bölgeleri')
+    axes[2].set_xlabel('Zaman (Saniye)')
+    
+    plt.tight_layout()
+    plt.show()
+
+# --- ÇALIŞTIRMA ---
+process_audio("kayit.wav")
