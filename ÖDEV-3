@@ -1,142 +1,728 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.io import wavfile
-from scipy.signal import medfilt
-import os
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIL216 - Ses İşaretlerinde VAD ve V/UV Analizi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* CSS TASARIM - Modern ve Profesyonel Arayüz */
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-dark: #111827;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
 
-def calculate_energy(frame):
-    """Kısa Süreli Enerji Hesaplaması (STE) - Ödev Formül: sum(x^2)"""
-    return np.sum(frame**2)
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 2rem 1rem;
+            line-height: 1.5;
+        }
 
-def calculate_zcr(frame):
-    """Sıfır Geçiş Oranı Hesaplaması (ZCR)"""
-    return np.sum(np.abs(np.diff(np.sign(frame)))) / (2 * len(frame))
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
 
-def process_audio(dosya_yolu):
-    # 1. DOSYAYI OKU VE NORMALİZE ET
-    if not os.path.exists(dosya_yolu):
-        print(f"Hata: {dosya_yolu} bulunamadı!")
-        return
+        /* Başlık Alanı */
+        .header-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            border-top: 5px solid var(--primary-color);
+        }
 
-    fs, signal = wavfile.read(dosya_yolu)
+        .header-card h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .header-card p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Kontrol Alanı (Dosya Yükleme ve Buton) */
+        .control-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .custom-file-upload {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius);
+            background-color: #f9fafb;
+            color: var(--text-muted);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .custom-file-upload:hover {
+            border-color: var(--primary-color);
+            background-color: #eff6ff;
+            color: var(--primary-color);
+        }
+
+        input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Bilgi Mesajı */
+        .info-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: #e0e7ff;
+            color: var(--primary-hover);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        /* Ses Çalar Bölümü */
+        .audio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .audio-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .audio-card h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        audio {
+            width: 100%;
+            outline: none;
+        }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .download-btn:hover {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        /* Grafikler Bölümü */
+        .charts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            position: relative;
+            height: 300px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-card">
+        <h1>Ses İşaretlerinde VAD ve V/UV Analizi</h1>
+        <p>BIL216 - Sayısal Ses İşleme Dönem Projesi Arayüzü</p>
+    </div>
     
-    # Stereo ise monoya çevir
-    if len(signal.shape) > 1:
-        signal = signal.mean(axis=1)
+    <div class="control-card">
+        <div class="file-upload-wrapper">
+            <div class="custom-file-upload">
+                <span id="fileLabel">Yüklemek için .wav dosyası seçin veya sürükleyin</span>
+            </div>
+            <input type="file" id="audioInput" accept="audio/wav">
+        </div>
         
-    # Sinyali [-1, 1] aralığına normalize et (Teknik Notlar gereği)
-    signal = signal / np.max(np.abs(signal))
-    
-    # 2. PENCERELEME PARAMETRELERİ (20ms pencere, 10ms örtüşme)
-    frame_duration = 0.020  
-    overlap_duration = 0.010 
-    
-    frame_length = int(frame_duration * fs)
-    step_length = int(overlap_duration * fs)
-    num_frames = 1 + int((len(signal) - frame_length) / step_length)
-    
-    energies = np.zeros(num_frames)
-    zcrs = np.zeros(num_frames)
-    window = np.hamming(frame_length) # Spektral sızıntıyı önlemek için Hamming
-    
-    # Özellik Çıkarımı
-    for i in range(num_frames):
-        start = i * step_length
-        end = start + frame_length
-        frame = signal[start:end] * window
-        energies[i] = calculate_energy(frame)
-        zcrs[i] = calculate_zcr(frame)
+        <div id="infoText" class="info-badge">Sistem hazır, ses dosyası bekleniyor.</div>
         
-    # 3. GÜRÜLTÜ TAHMİNİ VE VAD (Voice Activity Detection)
-    # İlk 150ms'den dinamik eşik hesaplama (Ödev 1. Adım)
-    noise_duration = 0.150 
-    hop_duration = frame_duration - overlap_duration
-    noise_frames_count = int(noise_duration / hop_duration)
-    
-    noise_floor = np.mean(energies[:noise_frames_count])
-    # Çarpan 50: Sessiz bölgelerdeki düşük gürültüyü tamamen elemek için
-    energy_threshold = noise_floor * 20 
-    
-    # VAD Kararı ve Temizleme
-    vad = (energies > energy_threshold).astype(int)
-    vad = medfilt(vad, kernel_size=5) # Anlık hataları (tık sesleri) temizler
-    
-    # Hangover Time (Akıcılık Kontrolü)
-    hangover_frames = 5
-    for i in range(hangover_frames, len(vad)):
-        if vad[i] == 0 and np.sum(vad[i-hangover_frames:i]) >= 1:
-            vad[i] = 1
+        <button id="analyzeBtn" disabled>Analiz Et ve Temizle</button>
+    </div>
 
-    # 4. SESLİ / SESSİZ (Voiced / Unvoiced) ANALİZİ
-    zcr_threshold = 0.15 
-    v_uv_mask = np.zeros(num_frames) 
-    
-    for i in range(num_frames):
-        if vad[i] == 1: # Konuşma varsa analiz yap
-            if zcrs[i] < zcr_threshold:
-                v_uv_mask[i] = 2 # Voiced (Yeşil)
-            else:
-                v_uv_mask[i] = 1 # Unvoiced (Turuncu)
-        else:
-            v_uv_mask[i] = 0 # Sessiz bölge (Boyama yapma)
+    <div class="audio-grid">
+        <div class="audio-card">
+            <h3>Orijinal Ses Sinyali</h3>
+            <audio id="originalAudio" controls></audio>
+        </div>
+        <div class="audio-card">
+            <h3>Temizlenmiş Ses Sinyali</h3>
+            <audio id="cleanedAudio" controls></audio>
+            <a id="downloadLink" class="download-btn" style="display:none;">Temizlenmiş Sesi İndir (.wav)</a>
+        </div>
+    </div>
 
-    # 5. SIKIŞTIRMA VE KAYDETME
-    sample_mask = np.zeros(len(signal))
-    for i in range(num_frames):
-        if vad[i] == 1:
-            start = i * step_length
-            end = start + frame_length
-            sample_mask[start:end] = 1
+    <div class="charts-container">
+        <div class="chart-card">
+            <canvas id="chart1"></canvas>
+        </div>
+        <div class="chart-card">
+            <canvas id="chart2"></canvas>
+        </div>
+        <div class="chart-card">
+            <canvas id="chart3"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- GLOABAL DEĞİŞKENLER ---
+    let audioContext;
+    let originalSignal = null;
+    let sampleRate = null;
+    let chart1Instance = null;
+    let chart2Instance = null;
+    let chart3Instance = null;
+
+    // --- DOM ELEMENTLERİ ---
+    const audioInput = document.getElementById('audioInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const infoText = document.getElementById('infoText');
+    const fileLabel = document.getElementById('fileLabel');
+    const originalAudio = document.getElementById('originalAudio');
+    const cleanedAudio = document.getElementById('cleanedAudio');
+    const downloadLink = document.getElementById('downloadLink');
+
+    // Chart.js Varsayılan Font Ayarları
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = "#6b7280";
+
+    // 1. DOSYA YÜKLEME VE NORMALİZASYON (Algoritma Değiştirilmedi)
+    audioInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Arayüz güncellemeleri
+        fileLabel.innerText = file.name;
+        infoText.innerText = `İşleniyor: ${file.name}...`;
+        originalAudio.src = URL.createObjectURL(file);
+
+        // Ses verisini oku
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        sampleRate = audioBuffer.sampleRate;
+        
+        // Stereo ise mono'ya çevir
+        if (audioBuffer.numberOfChannels > 1) {
+            const chan0 = audioBuffer.getChannelData(0);
+            const chan1 = audioBuffer.getChannelData(1);
+            originalSignal = new Float32Array(chan0.length);
+            for (let i = 0; i < chan0.length; i++) {
+                originalSignal[i] = (chan0[i] + chan1[i]) / 2.0;
+            }
+        } else {
+            originalSignal = audioBuffer.getChannelData(0);
+        }
+
+        infoText.innerText = `Hazır: ${file.name} | Örnekleme: ${sampleRate} Hz`;
+        infoText.style.backgroundColor = "#dcfce7";
+        infoText.style.color = "#059669";
+        analyzeBtn.disabled = false;
+
+        // Orijinal grafiği çiz
+        drawChart1(originalSignal, sampleRate);
+    });
+
+    // 2. ANALİZ BUTONUNA TIKLANMASI (Algoritma Değiştirilmedi)
+    analyzeBtn.addEventListener('click', () => {
+        if (!originalSignal) return;
+
+        infoText.innerText = "Analiz ediliyor, lütfen bekleyin...";
+        
+        // UI'ın donmasını engellemek için küçük bir gecikme ile çalıştır
+        setTimeout(() => {
+            const fs = sampleRate;
+            const frame_ms = 20;
+            const overlap_ms = 10;
+            const frame_length = Math.floor((frame_ms / 1000) * fs);
+            const step_length = Math.floor((overlap_ms / 1000) * fs);
+            const num_frames = 1 + Math.floor((originalSignal.length - frame_length) / step_length);
+
+            let frames = [];
+            let energies = new Float32Array(num_frames);
+            let zcrs = new Float32Array(num_frames);
+
+            // Hamming penceresi
+            let windowArr = new Float32Array(frame_length);
+            for (let i = 0; i < frame_length; i++) {
+                windowArr[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (frame_length - 1));
+            }
+
+            // Pencereleme, Enerji ve ZCR
+            for (let i = 0; i < num_frames; i++) {
+                let start = i * step_length;
+                let end = start + frame_length;
+                let frame_raw = originalSignal.subarray(start, end);
+                
+                frames.push(frame_raw);
+
+                let energy = 0;
+                let zcr = 0;
+                
+                for (let j = 0; j < frame_length; j++) {
+                    let val = frame_raw[j] * windowArr[j]; // Pencere uygula
+                    energy += val * val; // Karesel enerji
+                    
+                    // Sıfır geçiş kontrolü
+                    if (j > 0) {
+                        let sign1 = Math.sign(frame_raw[j] * windowArr[j]) || 1;
+                        let sign2 = Math.sign(frame_raw[j-1] * windowArr[j-1]) || 1;
+                        if (sign1 !== sign2) zcr++;
+                    }
+                }
+                
+                energies[i] = energy;
+                zcrs[i] = zcr / (2 * frame_length);
+            }
+
+            // Gürültü tahmini (İlk 150ms -> 15 pencere)
+            const noise_frames_count = Math.min(15, num_frames);
+            let noise_sum = 0;
+            for(let i=0; i<noise_frames_count; i++) noise_sum += energies[i];
+            const noise_floor = noise_sum / noise_frames_count;
             
-    clean_signal = signal[sample_mask == 1]
-    output_filename = "temizlenmis_ses.wav"
-    # 16-bit PCM formatında kaydetme
-    wavfile.write(output_filename, fs, (clean_signal * 32767).astype(np.int16))
-    
-    # Rapor verileri
-    original_duration = len(signal) / fs
-    clean_duration = len(clean_signal) / fs
-    print("-" * 30)
-    print(f"Orijinal Süre: {original_duration:.2f} s")
-    print(f"Sıkıştırılmış Süre: {clean_duration:.2f} s")
-    print(f"Sıkıştırma Oranı: %{((original_duration-clean_duration)/original_duration)*100:.2f}")
-    print("-" * 30)
+            // Dinamik eşik
+            const energy_threshold = noise_floor * 5.0;
 
-    # 6. GÖRSELLEŞTİRME
-    time_axis = np.linspace(0, len(signal) / fs, num=len(signal))
-    frame_time_axis = np.linspace(0, len(signal) / fs, num=num_frames)
-    
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    
-    # Fig 1: Zaman Domeni
-    axes[0].plot(time_axis, signal, color='gray', alpha=0.7)
-    axes[0].set_title('Orijinal Ses Sinyali (Zaman Domeni)')
-    axes[0].set_ylabel('Genlik')
-    
-    # Fig 2: STE ve ZCR
-    ax2 = axes[1]
-    ax2.plot(frame_time_axis, energies, color='blue', label='Enerji (STE)')
-    ax2.set_ylabel('Enerji', color='blue')
-    ax3 = ax2.twinx()
-    ax3.plot(frame_time_axis, zcrs, color='red', alpha=0.5, label='ZCR')
-    ax3.set_ylabel('ZCR', color='red')
-    axes[1].set_title('Enerji (Mavi) ve ZCR (Kırmızı) Grafikleri')
-    
-    # Fig 3: VAD ve V/UV Maskesi
-    axes[2].plot(time_axis, signal, color='black', alpha=0.3)
-    for i in range(num_frames):
-        start_t = i * step_length / fs
-        end_t = (i * step_length + frame_length) / fs
-        if v_uv_mask[i] == 2:
-            axes[2].axvspan(start_t, end_t, color='green', alpha=0.4)
-        elif v_uv_mask[i] == 1:
-            axes[2].axvspan(start_t, end_t, color='orange', alpha=0.4)
+            // Başlangıç VAD maskesi
+            let vad_mask = new Uint8Array(num_frames);
+            for(let i=0; i<num_frames; i++) {
+                vad_mask[i] = energies[i] > energy_threshold ? 1 : 0;
+            }
+
+            // Medyan Filtre (5 pencerelik)
+            let smoothed_vad = new Uint8Array(num_frames);
+            for (let i = 0; i < num_frames; i++) {
+                let windowEdges = [];
+                for (let j = -2; j <= 2; j++) {
+                    let idx = i + j;
+                    if (idx >= 0 && idx < num_frames) windowEdges.push(vad_mask[idx]);
+                    else windowEdges.push(0);
+                }
+                windowEdges.sort((a, b) => a - b);
+                smoothed_vad[i] = windowEdges[2];
+            }
+            vad_mask = smoothed_vad;
+
+            // V/UV Kararı
+            let active_energies = [];
+            let active_zcrs = [];
+            for(let i=0; i<num_frames; i++) {
+                if(vad_mask[i]) {
+                    active_energies.push(energies[i]);
+                    active_zcrs.push(zcrs[i]);
+                }
+            }
+
+            let zcr_threshold = 0.1;
+            let v_uv_energy_threshold = 0.0;
+
+            if (active_zcrs.length > 0) {
+                zcr_threshold = active_zcrs.reduce((a,b)=>a+b,0) / active_zcrs.length;
+                let avg_active_energy = active_energies.reduce((a,b)=>a+b,0) / active_energies.length;
+                v_uv_energy_threshold = avg_active_energy * 0.2;
+            }
+
+            let voiced_mask = new Uint8Array(num_frames);
+            let unvoiced_mask = new Uint8Array(num_frames);
+
+            for (let i = 0; i < num_frames; i++) {
+                if (vad_mask[i]) {
+                    if (zcrs[i] < zcr_threshold && energies[i] > v_uv_energy_threshold) {
+                        voiced_mask[i] = 1;
+                    } else {
+                        unvoiced_mask[i] = 1;
+                    }
+                }
+            }
+
+            // Temiz Sinyali Üretme
+            let clean_parts = [];
+            let clean_length = 0;
+            for (let i = 0; i < num_frames; i++) {
+                if (vad_mask[i]) {
+                    let start = i * step_length;
+                    let end = start + step_length;
+                    clean_parts.push(originalSignal.subarray(start, end));
+                    clean_length += step_length;
+                }
+            }
+
+            let cleanSignal = new Float32Array(clean_length);
+            let offset = 0;
+            for (let part of clean_parts) {
+                cleanSignal.set(part, offset);
+                offset += part.length;
+            }
+
+            // Raporlama
+            let orig_dur = originalSignal.length / fs;
+            let clean_dur = cleanSignal.length / fs;
+            let comp_ratio = ((orig_dur - clean_dur) / orig_dur) * 100;
+
+            infoText.innerText = `Analiz Tamamlandı! Orijinal: ${orig_dur.toFixed(2)}s | Temizlenmiş: ${clean_dur.toFixed(2)}s | Sıkıştırma: %${comp_ratio.toFixed(2)}`;
+            infoText.style.backgroundColor = "#e0e7ff";
+            infoText.style.color = "#4338ca";
+
+            // Temiz sesi çalınabilir ve indirilebilir formata (WAV) çevir
+            const wavBlob = encodeWAV(cleanSignal, fs);
+            const wavUrl = URL.createObjectURL(wavBlob);
+            cleanedAudio.src = wavUrl;
             
-    axes[2].set_title('VAD ve Voiced(Yeşil)/Unvoiced(Turuncu) Bölgeleri')
-    axes[2].set_xlabel('Zaman (Saniye)')
-    
-    plt.tight_layout()
-    plt.show()
+            downloadLink.href = wavUrl;
+            downloadLink.download = "temizlenmis_ses.wav";
+            downloadLink.style.display = "inline-block";
 
-# --- ÇALIŞTIRMA ---
-process_audio("kayit.wav")
+            // Grafikleri Çiz
+            drawChart2(energies, zcrs, energy_threshold, step_length, fs);
+            drawChart3(originalSignal, voiced_mask, unvoiced_mask, step_length, frame_length, fs);
+        }, 50);
+    });
+
+    // --- YARDIMCI FONKSİYONLAR VE ÇİZİMLER ---
+
+    // Büyük veriler için seyreltme
+    function downsample(data, limit = 3000) {
+        if (data.length <= limit) return Array.from(data);
+        const step = Math.ceil(data.length / limit);
+        const res = [];
+        for (let i = 0; i < data.length; i += step) res.push(data[i]);
+        return res;
+    }
+
+    function drawChart1(signal, fs) {
+        const ctx = document.getElementById('chart1').getContext('2d');
+        if (chart1Instance) chart1Instance.destroy();
+        
+        const sampled = downsample(signal);
+        const labels = sampled.map((_, i) => ((i * signal.length / sampled.length) / fs).toFixed(2));
+
+        chart1Instance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Amplitüd',
+                    data: sampled,
+                    borderColor: '#9ca3af', // Modern gri
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0
+                }]
+            },
+            options: {
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: { 
+                    title: { 
+                        display: true, 
+                        text: '1. Orijinal Ses Sinyali (Zaman İçindeki Değişimi)',
+                        font: { size: 14, weight: 'bold' },
+                        color: '#111827'
+                    },
+                    legend: { display: false }
+                },
+                scales: { 
+                    x: { 
+                        title: { display: true, text: 'Zaman (Saniye)' },
+                        grid: { color: '#f3f4f6' }
+                    }, 
+                    y: { 
+                        min: -1, 
+                        max: 1,
+                        grid: { color: '#f3f4f6' }
+                    } 
+                },
+                animation: false
+            }
+        });
+    }
+
+    function drawChart2(energies, zcrs, threshold, step_length, fs) {
+        const ctx = document.getElementById('chart2').getContext('2d');
+        if (chart2Instance) chart2Instance.destroy();
+
+        const timeAxis = Array.from(energies).map((_, i) => (i * (step_length / fs)).toFixed(2));
+        const thresholdLine = new Array(energies.length).fill(threshold);
+
+        chart2Instance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: timeAxis,
+                datasets: [
+                    { 
+                        label: 'Enerji', 
+                        data: energies, 
+                        borderColor: '#4f46e5', // Primary blue
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        fill: true,
+                        yAxisID: 'y', 
+                        pointRadius: 0, 
+                        borderWidth: 2 
+                    },
+                    { 
+                        label: 'ZCR', 
+                        data: zcrs, 
+                        borderColor: '#ef4444', // Modern red
+                        yAxisID: 'y1', 
+                        pointRadius: 0, 
+                        borderWidth: 1.5 
+                    },
+                    { 
+                        label: 'Gürültü Eşiği', 
+                        data: thresholdLine, 
+                        borderColor: '#111827', 
+                        borderDash: [5, 5], 
+                        yAxisID: 'y', 
+                        pointRadius: 0, 
+                        borderWidth: 2 
+                    }
+                ]
+            },
+            options: {
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: { 
+                    title: { 
+                        display: true, 
+                        text: '2. Pencere Bazlı Enerji ve Sıfır Geçiş Oranı (ZCR)',
+                        font: { size: 14, weight: 'bold' },
+                        color: '#111827'
+                    } 
+                },
+                scales: {
+                    x: { 
+                        title: { display: true, text: 'Zaman (Saniye)' },
+                        grid: { color: '#f3f4f6' }
+                    },
+                    y: { 
+                        type: 'linear', 
+                        position: 'left', 
+                        title: { display: true, text: 'Karesel Enerji', color: '#4f46e5' },
+                        grid: { color: '#f3f4f6' }
+                    },
+                    y1: { 
+                        type: 'linear', 
+                        position: 'right', 
+                        grid: { drawOnChartArea: false }, 
+                        title: { display: true, text: 'ZCR Değeri', color: '#ef4444' } 
+                    }
+                },
+                animation: false
+            }
+        });
+    }
+
+    function drawChart3(signal, voiced_mask, unvoiced_mask, step_length, frame_length, fs) {
+        const ctx = document.getElementById('chart3').getContext('2d');
+        if (chart3Instance) chart3Instance.destroy();
+
+        const sampled = downsample(signal);
+        const timeRatio = signal.length / sampled.length;
+        const labels = sampled.map((_, i) => ((i * timeRatio) / fs).toFixed(2));
+
+        // Chart.js Plugin - Arkaplana V/UV bölgelerini boyamak için
+        const spanPlugin = {
+            id: 'spanPlugin',
+            beforeDatasetsDraw(chart) {
+                const { ctx, chartArea: { top, bottom, left, right }, scales: { x } } = chart;
+                ctx.save();
+                
+                const totalDuration = signal.length / fs;
+                const plotWidth = right - left;
+
+                for (let i = 0; i < voiced_mask.length; i++) {
+                    if (voiced_mask[i] || unvoiced_mask[i]) {
+                        const t_start = i * (step_length / fs);
+                        const t_end = t_start + (frame_length / fs);
+                        
+                        const xStart = left + (t_start / totalDuration) * plotWidth;
+                        const xEnd = left + (t_end / totalDuration) * plotWidth;
+                        
+                        // Modern, yumuşak renkler: Yeşik (Voiced), Turuncu/Sarı (Unvoiced)
+                        ctx.fillStyle = voiced_mask[i] ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)';
+                        ctx.fillRect(xStart, top, xEnd - xStart, bottom - top);
+                    }
+                }
+                ctx.restore();
+            }
+        };
+
+        chart3Instance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Sinyal',
+                    data: sampled,
+                    borderColor: 'rgba(107, 114, 128, 0.5)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    tension: 0
+                }]
+            },
+            options: {
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: { 
+                    title: { 
+                        display: true, 
+                        text: '3. VAD Sonucu: Voiced (Yeşil) / Unvoiced (Turuncu) Bölgeler',
+                        font: { size: 14, weight: 'bold' },
+                        color: '#111827'
+                    },
+                    legend: { display: false }
+                },
+                scales: { 
+                    x: { 
+                        title: { display: true, text: 'Zaman (Saniye)' },
+                        grid: { color: '#f3f4f6' }
+                    }, 
+                    y: { 
+                        min: -1, 
+                        max: 1,
+                        grid: { color: '#f3f4f6' }
+                    } 
+                },
+                animation: false
+            },
+            plugins: [spanPlugin]
+        });
+    }
+
+    // WAV formatına çevirme algoritması (Değiştirilmedi)
+    function encodeWAV(samples, sampleRate) {
+        let buffer = new ArrayBuffer(44 + samples.length * 2);
+        let view = new DataView(buffer);
+
+        let writeString = function (view, offset, string) {
+            for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+        };
+
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + samples.length * 2, true);
+        writeString(view, 8, 'WAVE');
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM formatı
+        view.setUint16(22, 1, true); // Mono
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true); // Byte rate
+        view.setUint16(32, 2, true); // Block align
+        view.setUint16(34, 16, true); // Bits per sample
+        writeString(view, 36, 'data');
+        view.setUint32(40, samples.length * 2, true);
+
+        let offset = 44;
+        for (let i = 0; i < samples.length; i++, offset += 2) {
+            let s = Math.max(-1, Math.min(1, samples[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+
+        return new Blob([view], { type: 'audio/wav' });
+    }
+</script>
+</body>
+</html>
