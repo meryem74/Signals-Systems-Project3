@@ -4,218 +4,392 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BIL216 - Ses İşaretlerinde VAD ve V/UV Analizi</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* CSS TASARIM - Modern ve Profesyonel Arayüz */
+        /* CSS TASARIM - Tema Değişkenleri */
         :root {
-            --primary-color: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg-color: #f3f4f6;
-            --card-bg: #ffffff;
-            --text-dark: #111827;
-            --text-muted: #6b7280;
-            --border-color: #e5e7eb;
+            color-scheme: light dark; /* Tarayıcı elementlerini (audio) temaya uydurur */
+            --primary-grad: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --primary-color: #6366f1;
             --success-color: #10b981;
-            --radius: 12px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            
+            /* Açık Tema (Varsayılan) */
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --bg-pattern: radial-gradient(#cbd5e1 1px, transparent 1px);
+            --upload-bg: #f8fafc;
+            --upload-hover-bg: #e0e7ff;
+            --audio-bg: #f8fafc;
+            
+            --info-bg: #f1f5f9;
+            --info-text: #64748b;
+            --info-border: #e2e8f0;
+            
+            --radius-lg: 16px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Karanlık Tema */
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-dark: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --bg-pattern: radial-gradient(#334155 1px, transparent 1px);
+            --upload-bg: #0f172a;
+            --upload-hover-bg: #312e81;
+            --audio-bg: #0f172a;
+            
+            --info-bg: #0f172a;
+            --info-text: #94a3b8;
+            --info-border: #334155;
+            
+            --shadow-md: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+            --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
+            background: var(--bg-color);
+            background-image: var(--bg-pattern);
+            background-size: 30px 30px;
             color: var(--text-dark);
             margin: 0;
-            padding: 2rem 1rem;
-            line-height: 1.5;
+            padding: 3rem 1.5rem;
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 2rem;
         }
 
         /* Başlık Alanı */
         .header-card {
             background: var(--card-bg);
-            padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            padding: 2.5rem 2rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
             text-align: center;
-            border-top: 5px solid var(--primary-color);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        .header-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 6px;
+            background: var(--primary-grad);
+        }
+
+        /* Tema Değiştirme Butonu */
+        .theme-toggle {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-dark);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: none;
+            padding: 0;
+        }
+
+        .theme-toggle:hover {
+            background: var(--border-color);
+            transform: scale(1.05);
+        }
+
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .header-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-color);
+            border-radius: 50%;
+            margin-bottom: 1rem;
         }
 
         .header-card h1 {
             margin: 0 0 0.5rem 0;
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--text-dark);
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: var(--primary-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
         }
 
         .header-card p {
             margin: 0;
             color: var(--text-muted);
-            font-size: 0.95rem;
+            font-size: 1.1rem;
+            font-weight: 400;
         }
 
-        /* Kontrol Alanı (Dosya Yükleme ve Buton) */
+        /* Kontrol Alanı */
         .control-card {
             background: var(--card-bg);
-            padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            padding: 2.5rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 1.5rem;
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
         }
 
         .file-upload-wrapper {
             position: relative;
             width: 100%;
-            max-width: 400px;
+            max-width: 500px;
         }
 
         .custom-file-upload {
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 1rem;
+            padding: 2.5rem 2rem;
             border: 2px dashed var(--border-color);
-            border-radius: var(--radius);
-            background-color: #f9fafb;
+            border-radius: var(--radius-lg);
+            background-color: var(--upload-bg);
             color: var(--text-muted);
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition);
             text-align: center;
+            gap: 1rem;
+        }
+
+        .custom-file-upload svg {
+            width: 48px;
+            height: 48px;
+            fill: var(--text-muted);
+            transition: var(--transition);
         }
 
         .custom-file-upload:hover {
             border-color: var(--primary-color);
-            background-color: #eff6ff;
+            background-color: var(--upload-hover-bg);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
             color: var(--primary-color);
+        }
+
+        .custom-file-upload:hover svg {
+            fill: var(--primary-color);
+            transform: scale(1.1);
         }
 
         input[type="file"] {
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
+            left: 0; top: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
         }
 
-        button {
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
+        button.primary-btn {
+            padding: 1rem 2.5rem;
+            font-size: 1.05rem;
             font-weight: 600;
             font-family: 'Inter', sans-serif;
             cursor: pointer;
-            background-color: var(--primary-color);
+            background: var(--primary-grad);
             color: white;
             border: none;
-            border-radius: 8px;
-            transition: background-color 0.2s, transform 0.1s;
-            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+            border-radius: 999px;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        button:hover:not(:disabled) {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
+        button.primary-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
         }
 
-        button:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        button:disabled {
-            background-color: #9ca3af;
+        button.primary-btn:disabled {
+            background: var(--border-color);
+            color: var(--text-muted);
             cursor: not-allowed;
             box-shadow: none;
         }
 
-        /* Bilgi Mesajı */
+        /* Bilgi Mesajı (Status Badge) */
         .info-badge {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            background-color: #e0e7ff;
-            color: var(--primary-hover);
-            border-radius: 20px;
-            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--info-bg);
+            color: var(--info-text);
+            border-radius: 999px;
+            font-size: 0.95rem;
             font-weight: 600;
             text-align: center;
+            border: 1px solid var(--info-border);
+            transition: var(--transition);
+        }
+
+        .info-badge::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: currentColor;
+            border-radius: 50%;
+            opacity: 0.7;
+        }
+
+        /* Dinamik Durum Sınıfları */
+        .status-ready {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .status-success {
+            background-color: rgba(99, 102, 241, 0.1);
+            color: var(--primary-color);
+            border-color: rgba(99, 102, 241, 0.2);
         }
 
         /* Ses Çalar Bölümü */
         .audio-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
         }
 
         .audio-card {
             background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: 1.5rem;
             border: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        .audio-card:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .audio-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            justify-content: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+
+        .audio-card-header svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-dark);
         }
 
         .audio-card h3 {
             margin: 0;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             color: var(--text-dark);
-            font-weight: 600;
+            font-weight: 700;
         }
 
         audio {
             width: 100%;
             outline: none;
+            border-radius: 8px;
+            background: var(--audio-bg);
         }
-
+        
+        /* Modern İndirme Butonu */
         .download-btn {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
             margin-top: 0.5rem;
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
-            color: var(--success-color);
-            border: 1px solid var(--success-color);
-            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            font-size: 0.95rem;
+            color: white;
+            background-color: var(--success-color);
+            border-radius: 999px;
             text-decoration: none;
             font-weight: 600;
-            transition: all 0.2s;
+            transition: var(--transition);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
         }
 
         .download-btn:hover {
-            background-color: var(--success-color);
-            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);
+            background-color: #059669;
         }
 
         /* Grafikler Bölümü */
         .charts-container {
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
+            gap: 2rem;
         }
 
         .chart-card {
             background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            padding: 1.5rem 2rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
             position: relative;
-            height: 300px;
+            height: 350px;
             width: 100%;
             border: 1px solid var(--border-color);
+            box-sizing: border-box;
+            transition: var(--transition);
+        }
+        
+        .chart-card:hover {
+            box-shadow: var(--shadow-hover);
         }
     </style>
 </head>
@@ -223,32 +397,73 @@
 
 <div class="container">
     <div class="header-card">
+        <button id="themeToggle" class="theme-toggle" aria-label="Temayı Değiştir">
+            <svg id="moonIcon" viewBox="0 0 24 24">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <svg id="sunIcon" viewBox="0 0 24 24" style="display: none;">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+        </button>
+
+        <div class="header-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+            </svg>
+        </div>
         <h1>Ses İşaretlerinde VAD ve V/UV Analizi</h1>
-        <p>BIL216 - Sayısal Ses İşleme Dönem Projesi Arayüzü</p>
+        <p>Gelişmiş Ses İşleme ve Sinyal Sınıflandırma Platformu</p>
     </div>
     
     <div class="control-card">
         <div class="file-upload-wrapper">
             <div class="custom-file-upload">
-                <span id="fileLabel">Yüklemek için .wav dosyası seçin veya sürükleyin</span>
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                </svg>
+                <span id="fileLabel">Yüklemek için <b>.wav</b> dosyası seçin veya sürükleyin</span>
             </div>
             <input type="file" id="audioInput" accept="audio/wav">
         </div>
         
-        <div id="infoText" class="info-badge">Sistem hazır, ses dosyası bekleniyor.</div>
+        <div id="infoText" class="info-badge">Sistem hazır, ses dosyası bekleniyor</div>
         
-        <button id="analyzeBtn" disabled>Analiz Et ve Temizle</button>
+        <button id="analyzeBtn" class="primary-btn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Analiz Et ve Temizle
+        </button>
     </div>
 
     <div class="audio-grid">
         <div class="audio-card">
-            <h3>Orijinal Ses Sinyali</h3>
+            <div class="audio-card-header">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
+                <h3>Orijinal Ses Sinyali</h3>
+            </div>
             <audio id="originalAudio" controls></audio>
         </div>
         <div class="audio-card">
-            <h3>Temizlenmiş Ses Sinyali</h3>
+            <div class="audio-card-header">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <h3>Temizlenmiş Ses Sinyali</h3>
+            </div>
             <audio id="cleanedAudio" controls></audio>
-            <a id="downloadLink" class="download-btn" style="display:none;">Temizlenmiş Sesi İndir (.wav)</a>
+            <a id="downloadLink" class="download-btn" style="display:none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Sesi İndir (.wav)
+            </a>
         </div>
     </div>
 
@@ -273,8 +488,16 @@
     let chart1Instance = null;
     let chart2Instance = null;
     let chart3Instance = null;
+    
+    // Tema Durumu
+    let isDarkMode = false;
 
     // --- DOM ELEMENTLERİ ---
+    const htmlEl = document.documentElement;
+    const themeToggle = document.getElementById('themeToggle');
+    const moonIcon = document.getElementById('moonIcon');
+    const sunIcon = document.getElementById('sunIcon');
+
     const audioInput = document.getElementById('audioInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const infoText = document.getElementById('infoText');
@@ -285,26 +508,74 @@
 
     // Chart.js Varsayılan Font Ayarları
     Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.color = "#6b7280";
 
-    // 1. DOSYA YÜKLEME VE NORMALİZASYON (Algoritma Değiştirilmedi)
+    // --- TEMA YÖNETİMİ ---
+    themeToggle.addEventListener('click', () => {
+        isDarkMode = !isDarkMode;
+        
+        if (isDarkMode) {
+            htmlEl.setAttribute('data-theme', 'dark');
+            moonIcon.style.display = 'none';
+            sunIcon.style.display = 'block';
+        } else {
+            htmlEl.removeAttribute('data-theme');
+            moonIcon.style.display = 'block';
+            sunIcon.style.display = 'none';
+        }
+        
+        updateChartsTheme();
+    });
+
+    // Dinamik Tema Renkleri Getter Fonksiyonları
+    function getGridColor() { return isDarkMode ? '#334155' : '#f1f5f9'; }
+    function getTextColor() { return isDarkMode ? '#f8fafc' : '#0f172a'; }
+    function getChart1LineColor() { return isDarkMode ? '#cbd5e1' : '#94a3b8'; }
+    function getThresholdLineColor() { return isDarkMode ? '#f8fafc' : '#111827'; }
+
+    // Çizilmiş grafikleri yeniden başlatmadan sadece renklerini günceller
+    function updateChartsTheme() {
+        Chart.defaults.color = isDarkMode ? "#94a3b8" : "#64748b";
+
+        const gridC = getGridColor();
+        const textC = getTextColor();
+
+        [chart1Instance, chart2Instance, chart3Instance].forEach(chart => {
+            if (chart) {
+                chart.options.scales.x.grid.color = gridC;
+                chart.options.scales.y.grid.color = gridC;
+                if(chart.options.scales.y1) chart.options.scales.y1.grid.color = gridC;
+                
+                chart.options.plugins.title.color = textC;
+                
+                // Özel çizgilerin renklerini güncelleme
+                if (chart === chart1Instance) {
+                    chart.data.datasets[0].borderColor = getChart1LineColor();
+                }
+                if (chart === chart2Instance && chart.data.datasets[2]) {
+                    chart.data.datasets[2].borderColor = getThresholdLineColor();
+                }
+                
+                chart.update();
+            }
+        });
+    }
+
+    // 1. DOSYA YÜKLEME VE NORMALİZASYON (ALGORİTMA KORUNDU)
     audioInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Arayüz güncellemeleri
-        fileLabel.innerText = file.name;
+        fileLabel.innerHTML = `Seçilen Dosya: <b>${file.name}</b>`;
         infoText.innerText = `İşleniyor: ${file.name}...`;
+        infoText.className = 'info-badge'; // Varsayılan renk
         originalAudio.src = URL.createObjectURL(file);
 
-        // Ses verisini oku
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const arrayBuffer = await file.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
         sampleRate = audioBuffer.sampleRate;
         
-        // Stereo ise mono'ya çevir
         if (audioBuffer.numberOfChannels > 1) {
             const chan0 = audioBuffer.getChannelData(0);
             const chan1 = audioBuffer.getChannelData(1);
@@ -317,21 +588,19 @@
         }
 
         infoText.innerText = `Hazır: ${file.name} | Örnekleme: ${sampleRate} Hz`;
-        infoText.style.backgroundColor = "#dcfce7";
-        infoText.style.color = "#059669";
+        infoText.className = 'info-badge status-ready';
         analyzeBtn.disabled = false;
 
-        // Orijinal grafiği çiz
         drawChart1(originalSignal, sampleRate);
     });
 
-    // 2. ANALİZ BUTONUNA TIKLANMASI (Algoritma Değiştirilmedi)
+    // 2. ANALİZ BUTONUNA TIKLANMASI (ALGORİTMA KORUNDU)
     analyzeBtn.addEventListener('click', () => {
         if (!originalSignal) return;
 
         infoText.innerText = "Analiz ediliyor, lütfen bekleyin...";
+        infoText.className = 'info-badge';
         
-        // UI'ın donmasını engellemek için küçük bir gecikme ile çalıştır
         setTimeout(() => {
             const fs = sampleRate;
             const frame_ms = 20;
@@ -344,13 +613,11 @@
             let energies = new Float32Array(num_frames);
             let zcrs = new Float32Array(num_frames);
 
-            // Hamming penceresi
             let windowArr = new Float32Array(frame_length);
             for (let i = 0; i < frame_length; i++) {
                 windowArr[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (frame_length - 1));
             }
 
-            // Pencereleme, Enerji ve ZCR
             for (let i = 0; i < num_frames; i++) {
                 let start = i * step_length;
                 let end = start + frame_length;
@@ -362,10 +629,9 @@
                 let zcr = 0;
                 
                 for (let j = 0; j < frame_length; j++) {
-                    let val = frame_raw[j] * windowArr[j]; // Pencere uygula
-                    energy += val * val; // Karesel enerji
+                    let val = frame_raw[j] * windowArr[j]; 
+                    energy += val * val; 
                     
-                    // Sıfır geçiş kontrolü
                     if (j > 0) {
                         let sign1 = Math.sign(frame_raw[j] * windowArr[j]) || 1;
                         let sign2 = Math.sign(frame_raw[j-1] * windowArr[j-1]) || 1;
@@ -377,22 +643,18 @@
                 zcrs[i] = zcr / (2 * frame_length);
             }
 
-            // Gürültü tahmini (İlk 150ms -> 15 pencere)
             const noise_frames_count = Math.min(15, num_frames);
             let noise_sum = 0;
             for(let i=0; i<noise_frames_count; i++) noise_sum += energies[i];
             const noise_floor = noise_sum / noise_frames_count;
             
-            // Dinamik eşik
             const energy_threshold = noise_floor * 5.0;
 
-            // Başlangıç VAD maskesi
             let vad_mask = new Uint8Array(num_frames);
             for(let i=0; i<num_frames; i++) {
                 vad_mask[i] = energies[i] > energy_threshold ? 1 : 0;
             }
 
-            // Medyan Filtre (5 pencerelik)
             let smoothed_vad = new Uint8Array(num_frames);
             for (let i = 0; i < num_frames; i++) {
                 let windowEdges = [];
@@ -406,7 +668,6 @@
             }
             vad_mask = smoothed_vad;
 
-            // V/UV Kararı
             let active_energies = [];
             let active_zcrs = [];
             for(let i=0; i<num_frames; i++) {
@@ -438,7 +699,6 @@
                 }
             }
 
-            // Temiz Sinyali Üretme
             let clean_parts = [];
             let clean_length = 0;
             for (let i = 0; i < num_frames; i++) {
@@ -457,25 +717,21 @@
                 offset += part.length;
             }
 
-            // Raporlama
             let orig_dur = originalSignal.length / fs;
             let clean_dur = cleanSignal.length / fs;
             let comp_ratio = ((orig_dur - clean_dur) / orig_dur) * 100;
 
-            infoText.innerText = `Analiz Tamamlandı! Orijinal: ${orig_dur.toFixed(2)}s | Temizlenmiş: ${clean_dur.toFixed(2)}s | Sıkıştırma: %${comp_ratio.toFixed(2)}`;
-            infoText.style.backgroundColor = "#e0e7ff";
-            infoText.style.color = "#4338ca";
+            infoText.innerText = `Analiz Tamamlandı! Orijinal: ${orig_dur.toFixed(2)}s | Temiz: ${clean_dur.toFixed(2)}s | Sıkıştırma: %${comp_ratio.toFixed(2)}`;
+            infoText.className = 'info-badge status-success';
 
-            // Temiz sesi çalınabilir ve indirilebilir formata (WAV) çevir
             const wavBlob = encodeWAV(cleanSignal, fs);
             const wavUrl = URL.createObjectURL(wavBlob);
             cleanedAudio.src = wavUrl;
             
             downloadLink.href = wavUrl;
             downloadLink.download = "temizlenmis_ses.wav";
-            downloadLink.style.display = "inline-block";
+            downloadLink.style.display = "inline-flex";
 
-            // Grafikleri Çiz
             drawChart2(energies, zcrs, energy_threshold, step_length, fs);
             drawChart3(originalSignal, voiced_mask, unvoiced_mask, step_length, frame_length, fs);
         }, 50);
@@ -483,7 +739,6 @@
 
     // --- YARDIMCI FONKSİYONLAR VE ÇİZİMLER ---
 
-    // Büyük veriler için seyreltme
     function downsample(data, limit = 3000) {
         if (data.length <= limit) return Array.from(data);
         const step = Math.ceil(data.length / limit);
@@ -496,6 +751,8 @@
         const ctx = document.getElementById('chart1').getContext('2d');
         if (chart1Instance) chart1Instance.destroy();
         
+        Chart.defaults.color = isDarkMode ? "#94a3b8" : "#64748b";
+        
         const sampled = downsample(signal);
         const labels = sampled.map((_, i) => ((i * signal.length / sampled.length) / fs).toFixed(2));
 
@@ -506,7 +763,7 @@
                 datasets: [{
                     label: 'Amplitüd',
                     data: sampled,
-                    borderColor: '#9ca3af', // Modern gri
+                    borderColor: getChart1LineColor(),
                     borderWidth: 1.5,
                     pointRadius: 0,
                     tension: 0
@@ -519,20 +776,21 @@
                     title: { 
                         display: true, 
                         text: '1. Orijinal Ses Sinyali (Zaman İçindeki Değişimi)',
-                        font: { size: 14, weight: 'bold' },
-                        color: '#111827'
+                        font: { size: 15, weight: '700' },
+                        color: getTextColor(),
+                        padding: {bottom: 20}
                     },
                     legend: { display: false }
                 },
                 scales: { 
                     x: { 
-                        title: { display: true, text: 'Zaman (Saniye)' },
-                        grid: { color: '#f3f4f6' }
+                        title: { display: true, text: 'Zaman (Saniye)', font: {weight: '600'} },
+                        grid: { color: getGridColor() }
                     }, 
                     y: { 
                         min: -1, 
                         max: 1,
-                        grid: { color: '#f3f4f6' }
+                        grid: { color: getGridColor() }
                     } 
                 },
                 animation: false
@@ -543,6 +801,8 @@
     function drawChart2(energies, zcrs, threshold, step_length, fs) {
         const ctx = document.getElementById('chart2').getContext('2d');
         if (chart2Instance) chart2Instance.destroy();
+        
+        Chart.defaults.color = isDarkMode ? "#94a3b8" : "#64748b";
 
         const timeAxis = Array.from(energies).map((_, i) => (i * (step_length / fs)).toFixed(2));
         const thresholdLine = new Array(energies.length).fill(threshold);
@@ -555,25 +815,27 @@
                     { 
                         label: 'Enerji', 
                         data: energies, 
-                        borderColor: '#4f46e5', // Primary blue
-                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        borderColor: '#6366f1', 
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
                         fill: true,
                         yAxisID: 'y', 
                         pointRadius: 0, 
-                        borderWidth: 2 
+                        borderWidth: 2,
+                        tension: 0.2
                     },
                     { 
                         label: 'ZCR', 
                         data: zcrs, 
-                        borderColor: '#ef4444', // Modern red
+                        borderColor: '#f43f5e', 
                         yAxisID: 'y1', 
                         pointRadius: 0, 
-                        borderWidth: 1.5 
+                        borderWidth: 1.5,
+                        tension: 0.2 
                     },
                     { 
                         label: 'Gürültü Eşiği', 
                         data: thresholdLine, 
-                        borderColor: '#111827', 
+                        borderColor: getThresholdLineColor(), 
                         borderDash: [5, 5], 
                         yAxisID: 'y', 
                         pointRadius: 0, 
@@ -584,30 +846,32 @@
             options: {
                 responsive: true, 
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: { 
                     title: { 
                         display: true, 
                         text: '2. Pencere Bazlı Enerji ve Sıfır Geçiş Oranı (ZCR)',
-                        font: { size: 14, weight: 'bold' },
-                        color: '#111827'
+                        font: { size: 15, weight: '700' },
+                        color: getTextColor(),
+                        padding: {bottom: 20}
                     } 
                 },
                 scales: {
                     x: { 
-                        title: { display: true, text: 'Zaman (Saniye)' },
-                        grid: { color: '#f3f4f6' }
+                        title: { display: true, text: 'Zaman (Saniye)', font: {weight: '600'} },
+                        grid: { color: getGridColor() }
                     },
                     y: { 
                         type: 'linear', 
                         position: 'left', 
-                        title: { display: true, text: 'Karesel Enerji', color: '#4f46e5' },
-                        grid: { color: '#f3f4f6' }
+                        title: { display: true, text: 'Karesel Enerji', color: '#6366f1', font: {weight: '600'} },
+                        grid: { color: getGridColor() }
                     },
                     y1: { 
                         type: 'linear', 
                         position: 'right', 
                         grid: { drawOnChartArea: false }, 
-                        title: { display: true, text: 'ZCR Değeri', color: '#ef4444' } 
+                        title: { display: true, text: 'ZCR Değeri', color: '#f43f5e', font: {weight: '600'} } 
                     }
                 },
                 animation: false
@@ -618,16 +882,17 @@
     function drawChart3(signal, voiced_mask, unvoiced_mask, step_length, frame_length, fs) {
         const ctx = document.getElementById('chart3').getContext('2d');
         if (chart3Instance) chart3Instance.destroy();
+        
+        Chart.defaults.color = isDarkMode ? "#94a3b8" : "#64748b";
 
         const sampled = downsample(signal);
         const timeRatio = signal.length / sampled.length;
         const labels = sampled.map((_, i) => ((i * timeRatio) / fs).toFixed(2));
 
-        // Chart.js Plugin - Arkaplana V/UV bölgelerini boyamak için
         const spanPlugin = {
             id: 'spanPlugin',
             beforeDatasetsDraw(chart) {
-                const { ctx, chartArea: { top, bottom, left, right }, scales: { x } } = chart;
+                const { ctx, chartArea: { top, bottom, left, right } } = chart;
                 ctx.save();
                 
                 const totalDuration = signal.length / fs;
@@ -641,7 +906,6 @@
                         const xStart = left + (t_start / totalDuration) * plotWidth;
                         const xEnd = left + (t_end / totalDuration) * plotWidth;
                         
-                        // Modern, yumuşak renkler: Yeşik (Voiced), Turuncu/Sarı (Unvoiced)
                         ctx.fillStyle = voiced_mask[i] ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)';
                         ctx.fillRect(xStart, top, xEnd - xStart, bottom - top);
                     }
@@ -657,7 +921,7 @@
                 datasets: [{
                     label: 'Sinyal',
                     data: sampled,
-                    borderColor: 'rgba(107, 114, 128, 0.5)',
+                    borderColor: 'rgba(100, 116, 139, 0.5)',
                     borderWidth: 1,
                     pointRadius: 0,
                     tension: 0
@@ -670,20 +934,21 @@
                     title: { 
                         display: true, 
                         text: '3. VAD Sonucu: Voiced (Yeşil) / Unvoiced (Turuncu) Bölgeler',
-                        font: { size: 14, weight: 'bold' },
-                        color: '#111827'
+                        font: { size: 15, weight: '700' },
+                        color: getTextColor(),
+                        padding: {bottom: 20}
                     },
                     legend: { display: false }
                 },
                 scales: { 
                     x: { 
-                        title: { display: true, text: 'Zaman (Saniye)' },
-                        grid: { color: '#f3f4f6' }
+                        title: { display: true, text: 'Zaman (Saniye)', font: {weight: '600'} },
+                        grid: { color: getGridColor() }
                     }, 
                     y: { 
                         min: -1, 
                         max: 1,
-                        grid: { color: '#f3f4f6' }
+                        grid: { color: getGridColor() }
                     } 
                 },
                 animation: false
@@ -692,7 +957,7 @@
         });
     }
 
-    // WAV formatına çevirme algoritması (Değiştirilmedi)
+    // WAV formatına çevirme (DEĞİŞTİRİLMEDİ)
     function encodeWAV(samples, sampleRate) {
         let buffer = new ArrayBuffer(44 + samples.length * 2);
         let view = new DataView(buffer);
@@ -706,12 +971,12 @@
         writeString(view, 8, 'WAVE');
         writeString(view, 12, 'fmt ');
         view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true); // PCM formatı
-        view.setUint16(22, 1, true); // Mono
+        view.setUint16(20, 1, true); 
+        view.setUint16(22, 1, true); 
         view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * 2, true); // Byte rate
-        view.setUint16(32, 2, true); // Block align
-        view.setUint16(34, 16, true); // Bits per sample
+        view.setUint32(28, sampleRate * 2, true); 
+        view.setUint16(32, 2, true); 
+        view.setUint16(34, 16, true); 
         writeString(view, 36, 'data');
         view.setUint32(40, samples.length * 2, true);
 
